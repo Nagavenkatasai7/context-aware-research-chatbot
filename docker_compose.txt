@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  # API Backend Service
+  api:
+    build:
+      context: .
+      target: api
+    container_name: chatbot-api
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - DATABASE_URL=sqlite:///./data/chatbot.db
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - chatbot-network
+
+  # Streamlit UI Service
+  streamlit:
+    build:
+      context: .
+      target: streamlit-ui
+    container_name: chatbot-streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - chatbot-network
+
+  # Gradio UI Service
+  gradio:
+    build:
+      context: .
+      target: gradio-ui
+    container_name: chatbot-gradio
+    ports:
+      - "7860:7860"
+    environment:
+      - API_BASE_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - chatbot-network
+
+  # Data Processing Service (run once)
+  data-processor:
+    build:
+      context: .
+      target: data-processor
+    container_name: chatbot-data-processor
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env
+    profiles:
+      - processing
+    networks:
+      - chatbot-network
+
+  # Development service (all-in-one)
+  development:
+    build:
+      context: .
+      target: development
+    container_name: chatbot-development
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+      - "7860:7860"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - DATABASE_URL=sqlite:///./data/chatbot.db
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env
+      - .:/app  # Mount entire project for development
+    profiles:
+      - dev
+    networks:
+      - chatbot-network
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: chatbot-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+      - streamlit
+      - gradio
+    profiles:
+      - production
+    restart: unless-stopped
+    networks:
+      - chatbot-network
+
+networks:
+  chatbot-network:
+    driver: bridge
+
+volumes:
+  chatbot-data:
+    driver: local
