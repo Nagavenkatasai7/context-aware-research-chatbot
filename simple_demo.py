@@ -65,9 +65,9 @@ def main():
                     from langchain_community.vectorstores import FAISS
                     from langchain_huggingface import HuggingFaceEmbeddings
                     
-                    # Initialize components
+                    # Initialize components with latest GPT-4o model
                     llm = ChatOpenAI(
-                        model="gpt-3.5-turbo",
+                        model="gpt-4o",  # Latest GPT-4 Omni model (most advanced available)
                         temperature=0.0,
                         openai_api_key=OPENAI_API_KEY
                     )
@@ -83,39 +83,56 @@ def main():
                         allow_dangerous_deserialization=True
                     )
                     
-                    # Search for relevant documents
-                    docs = vector_store.similarity_search(prompt, k=5)
+                    # Search for relevant documents (increased from 5 to 10 for more comprehensive results)
+                    docs = vector_store.similarity_search(prompt, k=10)
                     
-                    # Create context from retrieved documents
-                    context = "\n\n".join([doc.page_content for doc in docs])
+                    # Create detailed context from retrieved documents
+                    context_parts = []
+                    for i, doc in enumerate(docs, 1):
+                        source = doc.metadata.get('source', 'Unknown')
+                        page = doc.metadata.get('page', 'Unknown')
+                        context_parts.append(f"Document {i} (Source: {source}, Page {page}):\n{doc.page_content}")
                     
-                    # Generate response
-                    response_prompt = f"""You are an AI policy expert. Answer the user's question based on the provided context.
+                    context = "\n\n" + "="*80 + "\n\n".join(context_parts)
                     
-Context from AI policy documents:
+                    # Generate response with enhanced prompt for detailed answers
+                    response_prompt = f"""You are an expert AI policy researcher. Provide a comprehensive, detailed answer based on the extensive context provided from AI policy documents.
+
+CONTEXT FROM AI POLICY DOCUMENTS:
 {context}
 
-Question: {prompt}
+QUESTION: {prompt}
 
-Instructions:
-1. Provide a comprehensive answer based on the context
-2. If the context doesn't contain enough information, say so
-3. Always cite your sources using [Source: filename, page/section]
-4. Be precise and factual
+INSTRUCTIONS:
+1. Provide a thorough, detailed answer drawing from ALL relevant parts of the context
+2. Include specific information, examples, frameworks, and recommendations from the documents  
+3. Quote important passages directly when they provide key insights
+4. Organize your response with clear sections and subsections if the topic is complex
+5. Explain technical concepts in detail based on the document content
+6. Include specific policy recommendations, guidelines, or frameworks mentioned in the documents
+7. If multiple perspectives or approaches are mentioned, discuss them all
+8. Provide concrete examples from the documents when available
+9. Make your response comprehensive - aim for 400-800 words when the topic warrants it
+10. At the end, cite which specific documents and pages contained the most relevant information
 
-Answer:"""
+COMPREHENSIVE DETAILED ANSWER:"""
                     
                     response = llm.invoke(response_prompt).content
                     
                     st.markdown(response)
                     
-                    # Show sources
+                    # Show detailed sources with content preview
                     if docs:
-                        st.markdown("### 📚 Sources:")
+                        st.markdown("### 📚 Detailed Sources:")
                         for i, doc in enumerate(docs, 1):
                             source = doc.metadata.get('source', 'Unknown')
                             page = doc.metadata.get('page', 'Unknown')
-                            st.markdown(f"**{i}.** {source} (Page {page})")
+                            preview = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
+                            
+                            with st.expander(f"**Source {i}:** {source} (Page {page})"):
+                                st.markdown(f"**Preview:** {preview}")
+                                st.markdown(f"**Full Content:**")
+                                st.text_area(f"Content from page {page}", doc.page_content, height=150, key=f"source_{i}")
                     
                     # Add assistant response to chat history
                     st.session_state.messages.append({"role": "assistant", "content": response})
@@ -127,13 +144,15 @@ Answer:"""
     
     # Sidebar with info
     with st.sidebar:
-        st.markdown("### 🔍 Sample Questions")
+        st.markdown("### 🔍 Sample Detailed Questions")
         sample_questions = [
-            "What are the key AI safety guidelines?",
-            "How does GDPR apply to AI systems?",
-            "What are the ethical considerations for AI?",
-            "What regulations exist for AI in healthcare?",
-            "How should AI bias be addressed?"
+            "What are the key AI safety guidelines and their implementation strategies?",
+            "How does GDPR apply to AI systems and what are the compliance requirements?",
+            "What are the comprehensive ethical considerations for AI deployment?", 
+            "What specific regulations exist for AI in healthcare and their requirements?",
+            "How should AI bias be addressed with detailed methodologies and frameworks?",
+            "What are the complete AI governance frameworks mentioned in policy documents?",
+            "Provide detailed information about AI transparency and explainability requirements"
         ]
         
         for q in sample_questions:
@@ -141,13 +160,16 @@ Answer:"""
                 st.session_state.messages.append({"role": "user", "content": q})
                 st.rerun()
         
-        st.markdown("### 📊 System Info")
-        st.info(f"""
+        st.markdown("### 📊 Enhanced System Info")
+        st.success(f"""
         - **Dataset**: AI Policy Documents
         - **Pages**: 1,207
         - **Chunks**: 4,808
-        - **Model**: GPT-3.5-turbo
+        - **Retrieved per query**: 10 documents
+        - **Model**: GPT-4o (Latest OpenAI Model) 🚀
         - **Embedding**: all-MiniLM-L6-v2
+        - **Response style**: Comprehensive & Detailed
+        - **Source preview**: Full document content
         """)
 
 if __name__ == "__main__":

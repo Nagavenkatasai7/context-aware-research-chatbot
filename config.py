@@ -19,7 +19,7 @@ class AppConfig(BaseSettings):
     tavily_api_key: Optional[str] = Field(None, env="TAVILY_API_KEY")
     
     # Model Configuration
-    llm_model: str = Field("gpt-3.5-turbo", env="LLM_MODEL")
+    llm_model: str = Field("gpt-4o", env="LLM_MODEL")
     embedding_model: str = Field("sentence-transformers/all-MiniLM-L6-v2", env="EMBEDDING_MODEL")
     temperature: float = Field(0.0, env="TEMPERATURE")
     
